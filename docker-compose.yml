@@ -1,0 +1,13 @@
+services:
+  agent:
+    build: .
+    image: code-bunny:latest
+    container_name: code-bunny-agent
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    volumes:
+      - ./repos:/app/repos
+      - ./logs:/app/logs
+    restart: unless-stopped

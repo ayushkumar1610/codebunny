@@ -1,0 +1,27 @@
+{
+  "name": "clickup-bunny",
+  "version": "1.0.0",
+  "description": "Listens to ClickUp task assignment events and automatically spins up OpenCode CLI to handle the task",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "NODE_ENV=development nodemon src/index.js",
+    "setup-webhook": "node scripts/setupWebhook.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "chalk": "^4.1.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "simple-git": "^3.25.0",
+    "winston": "^3.13.0",
+    "opencode-ai": "^1.2.10"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
