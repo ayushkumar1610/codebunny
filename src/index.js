@@ -29,7 +29,10 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: "Internal server error" });
 });
 
+const dbService = require("./services/dbService");
+
 app.listen(PORT, async () => {
+  await dbService.initDB();
   logger.info(`╔═══════════════════════════════════════════════════════╗`);
   logger.info(`║           CodeBunny Agent  🚀                         ║`);
   logger.info(`╚═══════════════════════════════════════════════════════╝`);

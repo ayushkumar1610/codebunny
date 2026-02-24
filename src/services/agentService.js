@@ -1,7 +1,9 @@
 const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
+const { v4: uuidv4 } = require("uuid");
 const logger = require("../utils/logger");
+const dbService = require("./dbService");
 
 /**
  * Build the full system prompt / instruction file that is fed to the agent.
@@ -62,9 +64,13 @@ Begin now.
  * @returns {Promise<void>}
  */
 function runAgent({ localPath, prompt, taskId }) {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     const logsDir = path.join(process.cwd(), "logs", "agent");
     fs.mkdirSync(logsDir, { recursive: true });
+
+    // Track session stats
+    const sessionId = uuidv4();
+    await dbService.startSession(sessionId, taskId);
 
     // Write prompt to a temp file so we can pass it cleanly
     const promptFile = path.join(logsDir, `prompt-${taskId}.md`);
@@ -113,8 +119,12 @@ function runAgent({ localPath, prompt, taskId }) {
     child.stdout.on("data", (d) => logger.info(`[Agent stdout] ${d.toString().trim()}`));
     child.stderr.on("data", (d) => logger.warn(`[Agent stderr] ${d.toString().trim()}`));
 
-    child.on("close", (code) => {
+    child.on("close", async (code) => {
       logStream.close();
+      
+      // We pass 0 for tokenCount for MVP since tracking CLI output precisely varies per tool.
+      await dbService.endSession(sessionId, 0);
+
       if (code === 0) {
         logger.info(`[Agent] Process exited cleanly for task ${taskId}`);
         resolve();
@@ -123,8 +133,9 @@ function runAgent({ localPath, prompt, taskId }) {
       }
     });
 
-    child.on("error", (err) => {
+    child.on("error", async (err) => {
       logStream.close();
+      await dbService.endSession(sessionId, 0);
       reject(err);
     });
   });
