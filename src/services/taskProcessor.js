@@ -56,14 +56,12 @@ async function processTaskAssignment(taskId) {
     logger.info(`[Processor] Launching Agent…`);
     await agentService.runAgent({ localPath: repoCtx.localPath, prompt, taskId });
 
-    // ── Step 7: Push branch (if AUTO_CREATE_PR is false, agent didn't push) ─
-    const autoPR = process.env.AUTO_CREATE_PR !== "false";
-    if (!autoPR) {
-      await gitService.pushBranch(repoCtx, branchName);
-    }
-
-    // ── Step 8: Create PR/MR (optional – agent may have done it itself) ───────
+    // ── Step 7: Push branch ───────
+    await gitService.pushBranch(repoCtx, branchName);
+    
+    // ── Step 8: Create PR/MR ───────
     let prUrl = null;
+    const autoPR = process.env.AUTO_CREATE_PR === "true";
     if (autoPR && (process.env.GITHUB_TOKEN || process.env.GITLAB_TOKEN)) {
       try {
         prUrl = await gitProviderService.createPullRequest({
@@ -85,7 +83,6 @@ async function processTaskAssignment(taskId) {
       ``,
       `- **Branch:** \`${branchName}\``,
       prUrl ? `- **Draft PR:** ${prUrl}` : "",
-      `- **Local path:** \`${repoCtx.localPath}\``,
     ]
       .filter(Boolean)
       .join("\n");
