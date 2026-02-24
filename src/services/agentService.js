@@ -36,8 +36,8 @@ ${taskSummary}
 2. Analyse the task description above and if its a bug, then get the root cause first.
    Then identify all the code changes needed.
 
-3. Implement the changes. Follow the existing code style, conventions and
-   patterns you find in the repository. Make sure to validate the changes and new changes wont break the existing code.
+3. Implement the changes. Follow the existing code style, conventions and patterns you find in the repository. 
+   Make sure to validate the changes and new changes wont break the existing code.
    Write tests if the project has a test suite.
 
 4. Make sure the project still builds / compiles without errors. Run any
