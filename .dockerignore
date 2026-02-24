@@ -3,3 +3,4 @@ logs
 repos
 .env
 .DS_Store
+.git
