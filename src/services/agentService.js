@@ -1,7 +1,7 @@
 const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
-const { v4: uuidv4 } = require("uuid");
+const { randomUUID } = require("crypto");
 const logger = require("../utils/logger");
 const dbService = require("./dbService");
 
@@ -69,7 +69,7 @@ function runAgent({ localPath, prompt, taskId }) {
     fs.mkdirSync(logsDir, { recursive: true });
 
     // Track session stats
-    const sessionId = uuidv4();
+    const sessionId = randomUUID();
     await dbService.startSession(sessionId, taskId);
 
     // Write prompt to a temp file so we can pass it cleanly

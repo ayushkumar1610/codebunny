@@ -17,7 +17,6 @@
     "opencode-ai": "^1.2.10",
     "pg": "^8.18.0",
     "simple-git": "^3.25.0",
-    "uuid": "^13.0.0",
     "winston": "^3.13.0"
   },
   "devDependencies": {
