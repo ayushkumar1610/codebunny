@@ -22,6 +22,8 @@ class DbService {
           CREATE TABLE IF NOT EXISTS agent_sessions (
             session_id UUID PRIMARY KEY,
             issue_id VARCHAR(255) NOT NULL,
+            status VARCHAR(50) DEFAULT 'queued',
+            technical_plan TEXT,
             token_utilised INTEGER DEFAULT 0,
             started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             end_at TIMESTAMP WITH TIME ZONE
@@ -36,19 +38,100 @@ class DbService {
     }
   }
 
-  async startSession(sessionId, issueId) {
+  async enqueueSession(sessionId, issueId) {
     if (!process.env.DATABASE_URL) return;
 
     try {
       await this.pool.query(
-        `INSERT INTO agent_sessions (session_id, issue_id)
-         VALUES ($1, $2)`,
+        `INSERT INTO agent_sessions (session_id, issue_id, status)
+         VALUES ($1, $2, 'queued')`,
         [sessionId, issueId]
       );
       
-      logger.info(`[DB] Registered start for session ${sessionId} (issue ${issueId})`);
+      logger.info(`[DB] Enqueued session ${sessionId} (issue ${issueId})`);
     } catch (err) {
-      logger.error(`[DB] Failed to start session: ${err.message}`, err);
+      logger.error(`[DB] Failed to enqueue session: ${err.message}`, err);
+    }
+  }
+
+  async getNextSessionByStatus(status) {
+    if (!process.env.DATABASE_URL) return null;
+
+    try {
+      const result = await this.pool.query(`
+        SELECT session_id, issue_id 
+        FROM agent_sessions 
+        WHERE status = $1 
+        ORDER BY started_at ASC 
+        LIMIT 1 
+        FOR UPDATE SKIP LOCKED
+      `, [status]);
+
+      if (result.rows.length > 0) {
+        return result.rows[0];
+      }
+      return null;
+    } catch (err) {
+      logger.error(`[DB] Failed to get next ${status} session: ${err.message}`, err);
+      return null;
+    }
+  }
+
+  async getNextQueuedSession() {
+    return this.getNextSessionByStatus('queued');
+  }
+
+  async getNextPlannedSession() {
+    return this.getNextSessionByStatus('planned');
+  }
+
+  async updateSessionStatus(sessionId, status) {
+    if (!process.env.DATABASE_URL) return;
+
+    try {
+      await this.pool.query(
+        `UPDATE agent_sessions 
+         SET status = $1 
+         WHERE session_id = $2`,
+        [status, sessionId]
+      );
+    } catch (err) {
+      logger.error(`[DB] Failed to update session status: ${err.message}`, err);
+    }
+  }
+
+  async startSession(sessionId, issueId) {
+    // We already inserted the row in enqueueSession, so just update status
+    this.updateSessionStatus(sessionId, 'processing');
+    logger.info(`[DB] Marked session ${sessionId} as processing`);
+  }
+
+  async savePlan(sessionId, plan) {
+    if (!process.env.DATABASE_URL) return;
+
+    try {
+      await this.pool.query(
+        `UPDATE agent_sessions SET technical_plan = $1 WHERE session_id = $2`,
+        [plan, sessionId]
+      );
+      logger.info(`[DB] Saved technical plan for session ${sessionId} (${plan.length} chars)`);
+    } catch (err) {
+      logger.error(`[DB] Failed to save plan: ${err.message}`, err);
+    }
+  }
+
+  async getPlan(sessionId) {
+    if (!process.env.DATABASE_URL) return null;
+
+    try {
+      const result = await this.pool.query(
+        `SELECT technical_plan FROM agent_sessions WHERE session_id = $1`,
+        [sessionId]
+      );
+      return result.rows[0]?.technical_plan || null;
+    } catch (err) {
+      logger.error(`[DB] Failed to get plan: ${err.message}`, err);
+      return null;
     }
   }
 
@@ -58,7 +141,7 @@ class DbService {
     try {
       await this.pool.query(
         `UPDATE agent_sessions 
-         SET end_at = CURRENT_TIMESTAMP, token_utilised = $1 
+         SET end_at = CURRENT_TIMESTAMP, token_utilised = $1, status = 'completed'
          WHERE session_id = $2`,
         [tokenUtilised, sessionId]
       );
