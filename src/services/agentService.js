@@ -38,6 +38,9 @@ ${taskSummary}
 4. Output ONLY the plan as your final response. The plan will be posted as a
    comment on the ticket for review before implementation begins.
 
+Constraints: 
+- File path should be relative to the root of the repository.
+
 Begin your analysis now.
 `.trim();
 }
