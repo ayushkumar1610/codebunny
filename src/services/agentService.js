@@ -4,6 +4,18 @@ const fs = require("fs");
 const logger = require("../utils/logger");
 
 /**
+ * Prepares the environment for the agent CLI, resolving any relative paths.
+ */
+function prepareAgentEnv(agentName) {
+  const agentEnv = { ...process.env };
+  if (agentEnv.OPENCODE_CONFIG && !path.isAbsolute(agentEnv.OPENCODE_CONFIG)) {
+    agentEnv.OPENCODE_CONFIG = path.resolve(process.cwd(), agentEnv.OPENCODE_CONFIG);
+  }
+  logger.info(`[${agentName}] OPENCODE_CONFIG: ${agentEnv.OPENCODE_CONFIG}`);
+  return agentEnv;
+}
+
+/**
  * Build a prompt that instructs the agent to ONLY produce a technical plan.
  * No code changes, no commits — just analysis and a markdown plan.
  */
@@ -134,12 +146,11 @@ function runPlanningAgent({ localPath, prompt, taskId }) {
     const logStream = fs.createWriteStream(path.join(logsDir, `plan-session-${taskId}.log`), { flags: "a" });
     let capturedOutput = "";
 
+    const agentEnv = prepareAgentEnv("PlanningAgent");
+
     const child = spawn(cmd, args, {
       cwd: localPath,
-      env: {
-        ...process.env,
-        GITHUB_TOKEN: process.env.GITHUB_TOKEN,
-      },
+      env: agentEnv,
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -214,12 +225,11 @@ function runBuilderAgent({ localPath, prompt, taskId }) {
 
     const logStream = fs.createWriteStream(path.join(logsDir, `build-session-${taskId}.log`), { flags: "a" });
 
+    const agentEnv = prepareAgentEnv("BuilderAgent");
+
     const child = spawn(cmd, args, {
       cwd: localPath,
-      env: {
-        ...process.env,
-        GITHUB_TOKEN: process.env.GITHUB_TOKEN,
-      },
+      env: agentEnv,
       stdio: ["ignore", "pipe", "pipe"],
     });
 

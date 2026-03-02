@@ -26,6 +26,8 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      - OPENCODE_CONFIG=/app/src/config/opencode.json
     ports:
       - "3000:3000"
     volumes:
