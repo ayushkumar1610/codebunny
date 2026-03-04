@@ -172,7 +172,7 @@ async function executeBuildingPipeline(taskId, sessionId) {
           branchName,
           baseBranch,
           title: `[CU-${task.id}] ${task.name}`,
-          body: `## ClickUp Task\n\n[${task.name}](${task.url})\n\n---\n\nAutomatically implemented by Builder Agent.`,
+          body: `## ClickUp Task\n\n[${task.name}](${task.url})\n\n---\n\nAutomatically implemented by Builder Agent.\n\n[Open in editor](vscode://codebunny.codebunny-vsix/open?repo=${repoUrl}&branch=${branchName})`,
         });
       } catch (prErr) {
         logger.warn(`[Builder] PR creation skipped: ${prErr.message}`);
