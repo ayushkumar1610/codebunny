@@ -22,9 +22,10 @@ function prepareAgentEnv(agentName) {
 function buildPlanningPrompt({ taskSummary, repoUrl, baseBranch }) {
   return `You are an expert software architect and technical lead.
 A task has been assigned from a ticket. Your job is to analyse the codebase and
-produce a detailed **technical implementation plan** — nothing else.
+produce a detailed **specification of what needs to be done**.
 
 ---
+## Ticket details
 
 ${taskSummary}
 
@@ -37,21 +38,14 @@ ${taskSummary}
 2. Explore the repository to understand the existing architecture, patterns,
    conventions, and relevant files.
 
-3. Produce a **Technical Implementation Plan** in Markdown with the following
-   sections:
-   - **Summary**: One-paragraph overview of what needs to change and why.
-   - **Files to Modify**: List every file that needs changes, with a brief
-     description of what changes are required in each.
-   - **New Files**: Any new files that need to be created.
-   - **Dependencies**: New packages or services required (if any).
-   - **Testing Strategy**: How to verify the changes work correctly.
-   - **Risks & Edge Cases**: Potential pitfalls to watch out for.
+3. Produce a **Clear specification and plan** in Markdown, look into the specs provided in the ticket then,
+   go through the codebase and check for its feasibility, any kind of conflict between specs and code, or remove changes which already exist in the codebase. Then come up with a clear specs and plan.
 
 4. Output ONLY the plan as your final response. The plan will be posted as a
    comment on the ticket for review before implementation begins.
 
 Constraints: 
-- File path should be relative to the root of the repository.
+- If file path mentioned, it should be relative to the root of the repository.
 
 Begin your analysis now.
 `.trim();
@@ -62,12 +56,12 @@ Begin your analysis now.
  */
 function buildBuilderPrompt({ plan, branchName, repoUrl, baseBranch }) {
   return `You are an expert software engineer working inside a git repository.
-A technical plan has been created by a planning agent. Follow the plan closely
-to implement the required changes.
+Specification and plan has been created by a planning agent. Follow the plan to 
+implement the required changes.
 
 ---
 
-## Technical Plan
+## Specification and Plan
 
 ${plan}
 
@@ -78,7 +72,7 @@ ${plan}
 1. **You are already on branch \`${branchName}\`.**  Do NOT switch branches.
    The branch has been created from \`${baseBranch}\` and is ready for your changes.
 
-2. Follow the technical plan above. It identifies which files to modify,
+2. Follow the specs and plan to identify which files to modify,
    what changes to make, and what to watch out for.
 
 3. Implement the changes. Follow the existing code style, conventions and
