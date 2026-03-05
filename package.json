@@ -14,9 +14,10 @@
     "chalk": "^4.1.2",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "opencode-ai": "^1.2.10",
+    "pg": "^8.18.0",
     "simple-git": "^3.25.0",
-    "winston": "^3.13.0",
-    "opencode-ai": "^1.2.10"
+    "winston": "^3.13.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.4"

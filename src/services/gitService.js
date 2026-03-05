@@ -133,4 +133,75 @@ async function pushBranch(repoCtx, branchName) {
   await repoCtx.git.push(["--set-upstream", "origin", branchName]);
 }
 
-module.exports = { ensureRepo, buildBranchName, checkoutBranch, pushBranch, repoUrlToDir, REPOS_BASE_DIR };
+/**
+ * Creates a unique git worktree for a specific task.
+ * @param {{ localPath: string, git: SimpleGit }} repoCtx
+ * @param {string} taskId
+ * @param {string} branchName
+ * @param {string} baseBranch
+ * @returns {Promise<string>} The absolute path to the newly created worktree
+ */
+async function setupWorktree(repoCtx, taskId, branchName, baseBranch) {
+  const { git, localPath } = repoCtx;
+  const worktreePath = `${localPath}__worktrees/${taskId}`;
+  
+  // Ensure the base worktrees directory exists
+  fs.mkdirSync(`${localPath}__worktrees`, { recursive: true });
+
+  const branches = await git.branch();
+  const remoteBranch = `remotes/origin/${branchName}`;
+
+  try {
+    if (branches.all.includes(branchName) || branches.all.includes(remoteBranch)) {
+      logger.info(`[Git] Branch "${branchName}" already exists, adding worktree at ${worktreePath}`);
+      // If branch exists remotely but not locally, we need to track it
+      if (!branches.all.includes(branchName) && branches.all.includes(remoteBranch)) {
+        await git.raw(["branch", "--track", branchName, remoteBranch]);
+      }
+      await git.raw(["worktree", "add", worktreePath, branchName]);
+    } else {
+      logger.info(`[Git] Creating new branch "${branchName}" and adding worktree at ${worktreePath}`);
+      await git.raw(["worktree", "add", "-b", branchName, worktreePath, `origin/${baseBranch}`]);
+    }
+    
+    logger.info(`[Git] Worktree ready at: ${worktreePath}`);
+    return worktreePath;
+  } catch (err) {
+    logger.error(`[Git] Failed to setup worktree: ${err.message}`);
+    throw err;
+  }
+}
+
+/**
+ * Removes a git worktree safely.
+ * @param {{ localPath: string, git: SimpleGit }} repoCtx
+ * @param {string} worktreePath
+ */
+async function teardownWorktree(repoCtx, worktreePath) {
+  try {
+    logger.info(`[Git] Removing worktree at ${worktreePath}`);
+    await repoCtx.git.raw(["worktree", "remove", "--force", worktreePath]);
+  } catch (err) {
+    logger.warn(`[Git] Failed to remove worktree: ${err.message}`);
+    // Best effort cleanup: if worktree remove fails, try removing dir
+    try {
+      if (fs.existsSync(worktreePath)) {
+        fs.rmSync(worktreePath, { recursive: true, force: true });
+        await repoCtx.git.raw(["worktree", "prune"]);
+      }
+    } catch (cleanupErr) {
+      logger.warn(`[Git] Cleanup fallback failed: ${cleanupErr.message}`);
+    }
+  }
+}
+
+module.exports = { 
+  ensureRepo, 
+  buildBranchName, 
+  checkoutBranch, 
+  pushBranch, 
+  repoUrlToDir, 
+  REPOS_BASE_DIR,
+  setupWorktree,
+  teardownWorktree
+};

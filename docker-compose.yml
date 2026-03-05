@@ -1,13 +1,39 @@
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: code-bunny-db
+    environment:
+      POSTGRES_USER: bunny
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: codebunny_stats
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bunny -d codebunny_stats"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   agent:
     build: .
     image: code-bunny:latest
     container_name: code-bunny-agent
-    ports:
-      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
     env_file:
       - .env
+    environment:
+      - OPENCODE_CONFIG=/app/src/config/opencode.json
+    ports:
+      - "3000:3000"
     volumes:
       - ./repos:/app/repos
       - ./logs:/app/logs
     restart: unless-stopped
+
+volumes:
+  pgdata:
