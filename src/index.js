@@ -30,9 +30,23 @@ app.use((err, _req, res, _next) => {
 });
 
 const dbService = require("./services/dbService");
+const gitService = require("./services/gitService");
+const queueService = require("./services/queueService");
 
 app.listen(PORT, async () => {
   await dbService.initDB();
+
+  // ── Crash recovery ────────────────────────────────────────────────────────
+  // Reset any sessions stuck in transient states from a previous crash, then
+  // wipe all leftover worktree directories (safe because no builders are
+  // running yet).  Kick off the queues so recovered sessions are processed.
+  const recovered = await dbService.recoverStuckSessions();
+  await gitService.pruneAllWorktrees();
+  if (recovered.planning > 0 || recovered.building > 0) {
+    logger.info(`[Startup] Triggering queues to process ${recovered.planning + recovered.building} recovered session(s)`);
+    queueService.triggerQueues();
+  }
+
   logger.info(`╔═══════════════════════════════════════════════════════╗`);
   logger.info(`║           CodeBunny Agent  🚀                         ║`);
   logger.info(`╚═══════════════════════════════════════════════════════╝`);

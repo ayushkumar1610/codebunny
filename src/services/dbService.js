@@ -135,6 +135,50 @@ class DbService {
     }
   }
 
+  /**
+   * On startup, reset any sessions stuck in transient states caused by a previous crash.
+   * - 'planning' → 'queued'   (planning never finished; retry from scratch)
+   * - 'building' → 'planned'  (plan exists; only the build phase needs to be retried)
+   *
+   * @returns {{ planning: number, building: number }} count of recovered sessions per state
+   */
+  async recoverStuckSessions() {
+    if (!process.env.DATABASE_URL) return { planning: 0, building: 0 };
+
+    try {
+      const [planningResult, buildingResult] = await Promise.all([
+        this.pool.query(
+          `UPDATE agent_sessions SET status = 'queued'
+           WHERE status = 'planning'
+           RETURNING session_id`
+        ),
+        this.pool.query(
+          `UPDATE agent_sessions SET status = 'planned'
+           WHERE status = 'building'
+           RETURNING session_id`
+        ),
+      ]);
+
+      const planning = planningResult.rowCount;
+      const building = buildingResult.rowCount;
+
+      if (planning > 0) {
+        logger.info(`[DB] Recovered ${planning} stuck 'planning' session(s) → reset to 'queued'`);
+      }
+      if (building > 0) {
+        logger.info(`[DB] Recovered ${building} stuck 'building' session(s) → reset to 'planned'`);
+      }
+      if (planning === 0 && building === 0) {
+        logger.info(`[DB] No stuck sessions found`);
+      }
+
+      return { planning, building };
+    } catch (err) {
+      logger.error(`[DB] Failed to recover stuck sessions: ${err.message}`, err);
+      return { planning: 0, building: 0 };
+    }
+  }
+
   async endSession(sessionId, tokenUtilised = 0) {
     if (!process.env.DATABASE_URL) return;
 
