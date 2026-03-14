@@ -195,13 +195,106 @@ async function teardownWorktree(repoCtx, worktreePath) {
   }
 }
 
-module.exports = { 
-  ensureRepo, 
-  buildBranchName, 
-  checkoutBranch, 
-  pushBranch, 
-  repoUrlToDir, 
+/**
+ * On startup, remove all worktree directories left behind by a previous crash.
+ *
+ * Called after recoverStuckSessions() so that no builders are actively using
+ * any worktrees — every directory under *__worktrees/ is therefore orphaned and
+ * safe to delete.
+ *
+ * Strategy per worktree:
+ *   1. Try `git worktree remove --force <path>` so git cleans up its tracking refs.
+ *   2. If that fails (e.g. the repo dir is gone), fall back to fs.rmSync.
+ *   3. After processing all entries, run `git worktree prune` on the parent repo
+ *      to discard any stale .git/worktrees/<id> metadata.
+ *
+ * @returns {Promise<number>} number of worktrees pruned
+ */
+async function pruneAllWorktrees() {
+  if (!fs.existsSync(REPOS_BASE_DIR)) return 0;
+
+  let prunedCount = 0;
+
+  const topLevel = fs.readdirSync(REPOS_BASE_DIR, { withFileTypes: true });
+
+  for (const entry of topLevel) {
+    if (!entry.isDirectory() || !entry.name.endsWith("__worktrees")) continue;
+
+    const worktreesDir = path.join(REPOS_BASE_DIR, entry.name);
+    // Repo dir is the same name without the trailing '__worktrees'
+    const repoDir = path.join(
+      REPOS_BASE_DIR,
+      entry.name.slice(0, -"__worktrees".length)
+    );
+
+    let taskDirs;
+    try {
+      taskDirs = fs
+        .readdirSync(worktreesDir, { withFileTypes: true })
+        .filter((e) => e.isDirectory())
+        .map((e) => e.name);
+    } catch (err) {
+      logger.warn(`[Git] Could not read worktrees dir ${worktreesDir}: ${err.message}`);
+      continue;
+    }
+
+    const git = fs.existsSync(repoDir)
+      ? simpleGit({ baseDir: repoDir })
+      : null;
+
+    for (const taskId of taskDirs) {
+      const worktreePath = path.join(worktreesDir, taskId);
+      logger.info(`[Git] Pruning orphaned worktree: ${worktreePath}`);
+
+      let removed = false;
+      if (git) {
+        try {
+          await git.raw(["worktree", "remove", "--force", worktreePath]);
+          removed = true;
+        } catch (err) {
+          logger.warn(`[Git] worktree remove failed for ${worktreePath}: ${err.message}`);
+        }
+      }
+
+      if (!removed) {
+        try {
+          fs.rmSync(worktreePath, { recursive: true, force: true });
+          removed = true;
+        } catch (err) {
+          logger.warn(`[Git] fs.rmSync fallback failed for ${worktreePath}: ${err.message}`);
+        }
+      }
+
+      if (removed) prunedCount++;
+    }
+
+    // Clean up stale git internal tracking entries
+    if (git) {
+      try {
+        await git.raw(["worktree", "prune"]);
+      } catch (err) {
+        logger.warn(`[Git] worktree prune failed for ${repoDir}: ${err.message}`);
+      }
+    }
+  }
+
+  if (prunedCount > 0) {
+    logger.info(`[Git] Pruned ${prunedCount} orphaned worktree(s)`);
+  } else {
+    logger.info(`[Git] No orphaned worktrees found`);
+  }
+
+  return prunedCount;
+}
+
+module.exports = {
+  ensureRepo,
+  buildBranchName,
+  checkoutBranch,
+  pushBranch,
+  repoUrlToDir,
   REPOS_BASE_DIR,
   setupWorktree,
-  teardownWorktree
+  teardownWorktree,
+  pruneAllWorktrees,
 };
